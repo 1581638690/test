@@ -1,0 +1,116 @@
+ #任务描述：找出某件商品的评价数，鞋码及购买人数
+'''需要用到的模块request time '''
+import requests
+import time
+import json
+import openpyxl #第三方模块用于操作excel文件
+#找出带有评论的网址
+#因为我们要爬取多数的商品 所以我们封装一个函数将id名和爬取的评论页数给爬取出来
+def get_comment(productID,page):
+    url='https://club.jd.com/comment/productPageComments.action?callback=fetchJSON_comment98&productId={0}&score=0&sortType=5&page={1}&pageSize=10&isShadowSku=0&fold=1'.format(productID,page)
+    headers={'User-agent':"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36"}
+    response=requests.get(url=url,headers=headers)
+    comment=response.text
+    #print
+    #对数出的结果进行格式化 因为输出结果必须为json或者csv或者列表才可以
+    #s=comment.replace(');','')
+    s=comment.replace('fetchJSON_comment98(','')
+    s = s.replace(');', '')
+    #然后将数据转化为json数据
+    json_data=json.loads(s)
+    return json_data
+
+#获取评论的最大页数
+def get_max_page(productID):
+    dict_comment=get_comment(productID,0)
+    return dict_comment['maxPage']
+
+
+#进行数据的提取
+def get_info(productID):
+    #调用函数获取商品最大的评论页数
+    #max_page=get_max_page(productID)
+    max_page=10
+    #用于存储提取到的商品数据
+    lst=[]
+    for page in range(1,max_page+1):
+        #获取每页的商品评论
+        comments=get_comment(productID,page)
+        comment_lst=comments['comments']
+
+        #每条评论又是一个字典
+        for item in comment_lst:
+            content=item['content'] #获取评论中的内容
+            color=item['productColor']#获取评论中的颜色
+            size=item['productSize']#获取评论中的尺码
+            lst.append([content,color,size])#将每条评论的信息添加到列表当中
+        time.sleep(3)#延迟时间，防止执行太快被封ip
+    save(lst)
+#用于将爬取到的数据存取到excel中
+def save(lst):
+    wk=openpyxl.Workbook()#创建工作簿对象
+
+    
+    sheet=wk.active #获取活动表
+    #遍历列表，将列表中的数据添加到工作表中，列表中的一个数据，在excel中是一行
+    for item in lst:
+        sheet.append(item)
+    #保存到磁盘
+    wk.save('销售数据.xlsx')
+
+
+
+if __name__ == '__main__':
+    productID='52729654785'
+    #print(get_max_page(productID))
+    get_info（productID)
+
+第二部分
+import openpyxl
+import matplotlib.pyplot as pit
+#打开excel文档
+wb=openpyxl.load_workbook('销售数据.xlsx')
+#获取活动表
+sheet=wb.active
+#获取最大行数和最大列数
+rows=sheet.max_row
+cols=sheet.max_column
+#进行数据清洗
+lst=[]#用于存储鞋码
+for i in range(1,rows+1):
+    size=sheet.cell(i,3).value
+    lst.append(size)
+'''for item in lst:
+    print(item)'''
+'''从excel中将鞋子码数数据读取完毕，添加到列表中，以下操作，开始数据统计，统计不同码数的鞋子销售'''
+'''pthon 中有一种数据结构叫字典，使用鞋码作为key，使用销售数据做value'''
+dic_size={}
+for item in lst:
+    dic_size[item]=0
+'''for item in dic_size:
+    print(item,dic_size[item])
+ '''
+#进行鞋码的数量统计
+for item in lst:
+    for size in dic_size:#遍历字典
+        if item==size:
+            dic_size[size]+=1
+            break
+for item in dic_size:
+    print(item,dic_size[item])
+
+#找到数量的百分比
+lst_total=[]
+for item in dic_size:
+    lst_total.append([item,dic_size[item],dic_size[item]/100*1.0])
+
+'''数据统计完毕，开始进行数据可视化'''
+
+labels=[item[0]+'码' for item in lst_total]
+fraces=[item[2] for item in lst_total]
+pit.rcParams['font.family']=['SimHei']
+pit.pie(x=fraces,labels=labels,autopct='%1.1f%%')
+pit.show()
+
+pit.savefig('图.jpg')
+
